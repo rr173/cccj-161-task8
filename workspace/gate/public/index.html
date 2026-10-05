@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>灵活负荷资格闸 · 调度台</title>
+<style>
+  :root {
+    --bg: #0f1720; --panel: #182331; --panel2: #1f2d3f; --line: #2c3d52;
+    --text: #e6edf3; --muted: #8ea3b8; --accent: #38bdf8; --accent2: #22d3ee;
+    --ok: #34d399; --warn: #fbbf24; --bad: #f87171; --violet: #a78bfa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  header {
+    padding: 14px 22px; background: linear-gradient(90deg, #10243a, #0f1720);
+    border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 650; }
+  header .clock { color: var(--accent); font-variant-numeric: tabular-nums; }
+  header .spacer { flex: 1; }
+  .banner { display: none; margin: 0; padding: 10px 22px; background: #4c1d1d; color: #fecaca; border-bottom: 1px solid #7f1d1d; }
+  .banner.show { display: block; }
+  nav { display: flex; gap: 4px; padding: 10px 16px 0; background: var(--bg); flex-wrap: wrap; }
+  nav button {
+    background: transparent; color: var(--muted); border: 1px solid transparent;
+    border-bottom: none; padding: 9px 15px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px;
+  }
+  nav button.active { background: var(--panel); color: var(--text); border-color: var(--line); }
+  main { padding: 18px 22px 60px; max-width: 1500px; margin: 0 auto; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: var(--accent2); }
+  .card h3 { margin: 14px 0 8px; font-size: 13px; color: var(--muted); }
+  label { display: block; margin: 8px 0 4px; color: var(--muted); font-size: 12px; }
+  input, select, textarea, button {
+    font: inherit; color: var(--text);
+  }
+  input, select, textarea {
+    width: 100%; background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px 10px; margin-bottom: 4px;
+  }
+  textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; min-height: 90px; }
+  button.act {
+    background: var(--accent); color: #06222f; border: none; border-radius: 6px;
+    padding: 8px 14px; cursor: pointer; font-weight: 600; margin: 6px 6px 0 0;
+  }
+  button.act.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  button.act.danger { background: #ef4444; color: #fff; }
+  button.act.warn { background: var(--warn); color: #2a1e00; }
+  button.act:disabled { opacity: .45; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+  tr:hover td { background: rgba(56,189,248,.05); }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; margin: 1px 2px; }
+  .tag.ok { background: rgba(52,211,153,.16); color: var(--ok); }
+  .tag.bad { background: rgba(248,113,113,.16); color: var(--bad); }
+  .tag.warn { background: rgba(251,191,36,.16); color: var(--warn); }
+  .tag.info { background: rgba(56,189,248,.16); color: var(--accent); }
+  .tag.violet { background: rgba(167,139,250,.16); color: var(--violet); }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; color: var(--muted); word-break: break-all; }
+  .out {
+    background: #0b121a; border: 1px solid var(--line); border-radius: 6px; padding: 10px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap;
+    max-height: 340px; overflow: auto; margin-top: 10px;
+  }
+  .out.err { border-color: #7f1d1d; color: #fca5a5; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 130px; }
+  .pill { font-size: 11px; color: var(--muted); }
+  .reason { color: var(--bad); font-size: 11.5px; }
+  .reason .rcode { color: #fca5a5; font-weight: 600; }
+  .sigbox { font-size: 11px; color: var(--ok); word-break: break-all; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 12px; }
+  .scroll { max-height: 460px; overflow: auto; }
+  .hint { color: var(--muted); font-size: 12px; margin: 4px 0 10px; }
+  .kv { color: var(--muted); font-size: 12px; }
+  .kv b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔌 灵活负荷资格闸</h1>
+  <span class="pill">事件溯源 · Ed25519 签名 · 规则版本链</span>
+  <div class="spacer"></div>
+  <span>仿真时钟：<b class="clock" id="clock">…</b></span>
+  <button class="act ghost" onclick="tick(15)">+15 分钟</button>
+  <button class="act ghost" onclick="tick(60)">+1 小时</button>
+  <button class="act ghost" onclick="tick(1440)">+1 天</button>
+  <button class="act warn" onclick="doReset()">复位种子</button>
+</header>
+<div class="banner" id="banner"></div>
+<nav id="nav">
+  <button data-tab="rules" class="active">① 规则维护</button>
+  <button data-tab="trial">② 规则试算</button>
+  <button data-tab="apply">③ 批量申请</button>
+  <button data-tab="review">④ 逐项复核 / 批次冻结</button>
+  <button data-tab="download">⑤ 脱敏清单下载</button>
+  <button data-tab="verify">⑥ 独立验签</button>
+  <button data-tab="ledger">⑦ 账本 / 密钥</button>
+</nav>
+<main>
+
+<!-- ① 规则维护 -->
+<section class="tab active" id="tab-rules">
+  <div class="grid">
+    <div class="card">
+      <h2>发布 / 改版资格规则</h2>
+      <div class="hint">适用面 = 地区（必填）+ 设备（可选；设备级优先于地区级）。生效日期按 UTC 日。改版需带 expectedVersion 乐观锁；撤销后重发用 <code>"REVOKED"</code>。</div>
+      <label>规则号（新建可留空自动生成；改版/撤销/回滚必填）</label>
+      <input id="r-ruleId" placeholder="RULE-ZJ-GENERAL" />
+      <div class="row">
+        <div><label>地区 *</label><input id="r-region" placeholder="ZJ" value="ZJ" /></div>
+        <div><label>设备 ID（可空）</label><input id="r-deviceId" placeholder="DEV-1005" /></div>
+      </div>
+      <div class="row">
+        <div><label>生效起 *</label><input id="r-from" type="date" value="2026-10-01" /></div>
+        <div><label>生效止（可空=长期）</label><input id="r-to" type="date" value="2026-10-31" /></div>
+      </div>
+      <div class="row">
+        <div><label>最短提前期（分钟）*</label><input id="r-lead" type="number" value="120" /></div>
+        <div><label>优先级（小者优先）</label><input id="r-priority" type="number" value="100" /></div>
+      </div>
+      <label>互斥标签（逗号分隔）</label>
+      <input id="r-mutex" placeholder="CRITICAL,ISLAND" />
+      <label>expectedVersion（改版乐观锁；撤销后重发填 REVOKED）</label>
+      <input id="r-expected" placeholder="1" />
+      <label>备注 / 操作人</label>
+      <div class="row">
+        <div><input id="r-note" placeholder="备注" /></div>
+        <div style="max-width:130px"><input id="r-by" placeholder="操作人" value="dispatch-01" /></div>
+      </div>
+      <button class="act" onclick="publishRule()">发布 / 改版</button>
+      <button class="act ghost" onclick="forcePublish()">强行发布（确认重叠）</button>
+      <div class="out" id="r-out"></div>
+    </div>
+
+    <div class="card">
+      <h2>撤销 / 回滚</h2>
+      <label>规则号 *</label>
+      <input id="rr-ruleId" placeholder="RULE-ZJ-GENERAL" />
+      <div class="row">
+        <div><label>expectedVersion（可选乐观锁）</label><input id="rr-expected" placeholder="1" /></div>
+        <div><label>回滚目标版本（仅回滚）</label><input id="rr-target" type="number" placeholder="1" /></div>
+      </div>
+      <label>原因 / 操作人</label>
+      <div class="row">
+        <div><input id="rr-reason" placeholder="原因" /></div>
+        <div style="max-width:130px"><input id="rr-by" value="dispatch-01" /></div>
+      </div>
+      <button class="act danger" onclick="revokeRule()">撤销当前版本</button>
+      <button class="act warn" onclick="rollbackRule()">回滚到目标版本（发新版本）</button>
+      <div class="out" id="rr-out"></div>
+      <h3>设备暂停 / 恢复（独立闸）</h3>
+      <div class="row">
+        <div style="flex:2"><label>设备 ID</label><input id="rr-device" placeholder="DEV-1003" /></div>
+        <div style="flex:1"><label>原因</label><input id="rr-devreason" /></div>
+      </div>
+      <button class="act danger" onclick="setDevice(true)">暂停设备</button>
+      <button class="act" onclick="setDevice(false)">恢复设备</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2>规则版本链（当前状态 + 全部历史版本）</h2>
+    <div class="scroll">
+      <table id="rules-table">
+        <thead><tr>
+          <th>规则号</th><th>适用面</th><th>生效日期窗</th><th>提前期</th><th>互斥</th>
+          <th>优先级</th><th>当前版本</th><th>相位</th><th>版本链</th><th>版本摘要(头)</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ② 规则试算 -->
+<section class="tab" id="tab-trial">
+  <div class="grid">
+    <div class="card">
+      <h2>试算（不落账、不签名）</h2>
+      <div class="hint">试算只返回“若此刻申请会得到什么裁决”，不产生批次，也不占用申请号。可用 atMs 模拟未来时刻（定时生效/过期/提前期）。</div>
+      <div class="row">
+        <div style="flex:2"><label>响应事件 *</label><select id="t-event"></select></div>
+        <div><label>试算时刻（留空=当前仿真时钟）</label><input id="t-at" type="datetime-local" /></div>
+      </div>
+      <label>设备 ID（逗号或换行分隔）</label>
+      <textarea id="t-devices">DEV-1001,DEV-1002,DEV-1003,DEV-1004,DEV-1005,DEV-9999</textarea>
+      <button class="act" onclick="runTrial()">开始试算</button>
+      <div class="out" id="t-out"></div>
+    </div>
+    <div class="card">
+      <h2>试算结果</h2>
+      <div class="scroll">
+        <table id="trial-table">
+          <thead><tr><th>#</th><th>设备</th><th>地区</th><th>裁决</th><th>拒绝原因</th><th>命中规则</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ③ 批量申请 -->
+<section class="tab" id="tab-apply">
+  <div class="grid">
+    <div class="card">
+      <h2>聚合商批量申请</h2>
+      <div class="hint">同一申请号 + 相同正文重送 → 返回原裁决（200，幂等）；同一申请号 + 不同正文 → <b>409</b>。裁决逐设备签名并绑定当时规则版本。</div>
+      <div class="row">
+        <div><label>申请号 *（客户幂等键）</label><input id="a-no" placeholder="APP-20261005-0001" /></div>
+        <div style="flex:2"><label>响应事件 *</label><select id="a-event"></select></div>
+        <div><label>聚合商 ID *</label><input id="a-agg" value="AGG-LANKE" /></div>
+      </div>
+      <label>设备批次（逗号或换行分隔；空批次留空或 []）</label>
+      <textarea id="a-devices">DEV-1001,DEV-1002,DEV-1003,DEV-1004,DEV-9999</textarea>
+      <button class="act" onclick="submitApp()">提交批量申请</button>
+      <button class="act ghost" onclick="submitEmpty()">提交空批次 []</button>
+      <div class="out" id="a-out"></div>
+    </div>
+    <div class="card">
+      <h2>裁决结果（逐设备）</h2>
+      <div id="a-meta" class="kv"></div>
+      <div class="scroll">
+        <table id="app-table">
+          <thead><tr><th>#</th><th>设备</th><th>裁决</th><th>拒绝原因</th><th>绑定规则版本</th><th>签名</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ④ 复核 / 冻结 -->
+<section class="tab" id="tab-review">
+  <div class="grid">
+    <div class="card">
+      <h2>逐项复核</h2>
+      <div class="hint">复核只形成复核层（维持 CONFIRMED / 标注异议 OVERRULED），<b>初裁与签名永不改变</b>；每台设备仅可复核一次；冻结后不可再复核。</div>
+      <div class="row">
+        <div style="flex:2"><label>申请批次</label><select id="rv-app" onchange="loadReviewApp()"></select></div>
+        <div><label>复核人</label><input id="rv-by" value="reviewer-01" /></div>
+      </div>
+      <div id="rv-items"></div>
+    </div>
+    <div class="card">
+      <h2>批次冻结</h2>
+      <div class="hint">冻结幂等：重复冻结返回同一冻结结果（同一 manifest 摘要 + 签名）。冻结后清单只读，可下载脱敏 CSV。空批次也可冻结。</div>
+      <div class="row">
+        <div style="flex:2"><label>申请批次</label><select id="fz-app"></select></div>
+        <div><label>操作人</label><input id="fz-by" value="dispatch-01" /></div>
+      </div>
+      <button class="act" onclick="freezeApp()">冻结批次</button>
+      <div class="out" id="fz-out"></div>
+      <h3>已冻结批次</h3>
+      <table id="frozen-table">
+        <thead><tr><th>申请号</th><th>事件</th><th>冻结时刻</th><th>清单摘要(头)</th><th>密钥</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ⑤ 下载 -->
+<section class="tab" id="tab-download">
+  <div class="card">
+    <h2>脱敏清单下载（仅冻结批次）</h2>
+    <div class="hint">设备号/聚合商/复核人按“前缀 + **** + 尾2位”打码；导出只含裁决、原因中文、绑定规则版本与摘要，无密钥材料。未冻结批次返回 409。</div>
+    <div class="row">
+      <div style="flex:2"><label>申请批次</label><select id="dl-app"></select></div>
+      <div style="align-self:end"><button class="act" onclick="downloadCsv()">下载脱敏 CSV</button></div>
+    </div>
+    <div class="out" id="dl-preview" style="max-height:520px"></div>
+  </div>
+</section>
+
+<!-- ⑥ 验签 -->
+<section class="tab" id="tab-verify">
+  <div class="grid">
+    <div class="card">
+      <h2>逐设备裁决 / 批次清单验签</h2>
+      <div class="row">
+        <div style="flex:2"><label>申请批次</label><select id="vf-app" onchange="fillVfDevices()"></select></div>
+        <div><label>设备（验逐设备时）</label><select id="vf-device"></select></div>
+      </div>
+      <button class="act" onclick="verifyDecisionWeb()">验该设备裁决</button>
+      <button class="act ghost" onclick="verifyManifestWeb()">验批次清单</button>
+      <div class="out" id="vf-out"></div>
+    </div>
+    <div class="card">
+      <h2>完全离线验签（自带公钥）</h2>
+      <div class="hint">不依赖本服务在线：粘贴公钥 PEM、规范化字节与 hex 签名即可验。也可只填 keyId 用本服务登记的公钥。</div>
+      <label>keyId（用本服务登记公钥时）</label>
+      <input id="vo-keyid" placeholder="gate-key-1" />
+      <label>公钥 PEM（可空=用登记 keyId）</label>
+      <textarea id="vo-pem" style="min-height:70px" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
+      <label>规范化字节 canonical</label>
+      <textarea id="vo-canonical" style="min-height:70px"></textarea>
+      <label>签名（hex）</label>
+      <textarea id="vo-sig" style="min-height:60px"></textarea>
+      <button class="act" onclick="verifyOfflineWeb()">离线验签</button>
+      <div class="out" id="vo-out"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ⑦ 账本 -->
+<section class="tab" id="tab-ledger">
+  <div class="grid">
+    <div class="card">
+      <h2>哈希链与签发密钥</h2>
+      <div id="chain-meta"></div>
+      <button class="act ghost" onclick="rotateKey()">轮换签发密钥（新裁决用新 keyId，旧批次仍可验）</button>
+      <h3>密钥（公钥上链，私钥只在 sidecar 0600）</h3>
+      <div id="keys-list"></div>
+    </div>
+    <div class="card">
+      <h2>账本记录（按 seq，即裁决顺序）</h2>
+      <div class="row">
+        <div><label>类型过滤</label>
+          <select id="lg-type" onchange="renderLog()">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div style="align-self:end;max-width:120px"><label>条数</label><input id="lg-limit" value="100" onchange="renderLog()" /></div>
+      </div>
+      <div class="scroll" style="max-height:560px"><table id="log-table">
+        <thead><tr><th>seq</th><th>时刻</th><th>类型</th><th>载荷摘要</th><th>哈希(头)</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

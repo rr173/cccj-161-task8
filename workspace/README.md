@@ -140,6 +140,38 @@ npm run test:e2e:evidence-destroy  # 90 项保全与销毁断言（中断态注�
 
 详见 [`evidence/README.md`](evidence/README.md)。
 
+## 灵活负荷资格闸模块（独立服务，`gate/`，端口 8093）
+
+调度员维护**按设备 / 地区 / 生效日期组合**的资格规则（定时生效、撤销、回滚，版本只增不可变）；
+聚合商按一个申请号提交一批设备参加指定响应事件，服务对每台设备独立裁决（准入/逐项拒绝原因），
+裁决钉入**当时规则版本全文 + 版本摘要**并逐设备 **Ed25519 签名**。同一申请号同文重送返回原裁决，
+同号异文 `409`；已生成批次永不被后续规则追改；命令单队列串行落账，重启后裁决顺序与版本链不变。
+
+```bash
+npm run gate               # 资格闸服务 + 调度台 → http://127.0.0.1:8093/
+npm run test:e2e:gate      # 57 项真实 HTTP 断言（含真实进程重启、第三方独立验签）
+node --test test/gate.test.js test/gate-restart.test.js  # 26 项领域/恢复单测
+```
+
+- **逐设备拒绝原因分别列出**（可并列）：`MUTEX_TAG`（互斥标签）、`DEVICE_SUSPENDED`（已暂停）、
+  `CROSS_REGION`（跨区域）、`LEAD_TIME_TOO_SHORT`（最短提前期，含要求/实际分钟）、
+  `UNKNOWN_DEVICE`（未知设备）、`RULE_OVERLAP`（同层级同优先级重叠）、`RULE_EXPIRED`（过期）、
+  `RULE_PENDING`（未到生效日）、`RULE_REVOKED`（已撤销）、`NO_QUALIFICATION_RULE`。
+- **规则版本链**：`versionHash` + `prevVersionHash`；发布用 `expectedVersion` 乐观锁
+  （stale → `RULE_VERSION_CONFLICT 409`），撤销后重发用 `expectedVersion:"REVOKED"`，
+  回滚 = 追加复刻旧正文的新版本（旧版本与中间版本原样保留）；同层级同优先级日期窗重叠发布即
+  `RULE_OVERLAP_DETECTED 409`（`forceOverlap` 可保留但裁决仍拒），设备级 vs 地区级是正常优先级层次。
+- **规则试算不落账不签名**；**逐项复核**只形成复核层（CONFIRMED/OVERRULED，仅一次，冻结后拒绝），
+  初裁 outcome 与签名永不改变；**批次冻结**幂等并签发 `gate-batch-manifest/v1` 清单（空批次可冻结）；
+  **脱敏 CSV** 仅冻结后可下载（设备/聚合商/复核人“前缀+****+尾2位”，无密钥材料，未冻结 409）。
+- **独立验签**：`GET …/items/:dev/verify`、`…/manifest/verify` 返回 canonical/摘要/公钥/签名，
+  或 `POST /api/verify` 用自带公钥完全离线验；签名对 `canonicalJSON(gate-decision/v1 载荷)`
+  直接做 PureEdDSA，任何外部实现可复算。私钥只在 `data/gate/gate-keys.json`（0600），公钥随链分发。
+- 独立哈希链 `data/gate/gate.log`（genesis `sha256("gate-chain-v1|ledger")`），
+  同样支持篡改只读隔离（503）与末尾断电残尾归档续链。
+
+详见 [`gate/README.md`](gate/README.md)。
+
 ## 重启恢复契约（日志损坏 / 断电残尾）
 
 服务重启时逐行重放 `data/events.log`，并对每条记录独立校验**序号连续性、prevHash 衔接、内容哈希**：
