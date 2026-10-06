@@ -140,6 +140,37 @@ npm run test:e2e:evidence-destroy  # 90 项保全与销毁断言（中断态注�
 
 详见 [`evidence/README.md`](evidence/README.md)。
 
+## 灵活负荷资格闸模块（独立服务，`eligibility/`，端口 8093）
+
+调度员维护按**设备 / 地区 / 生效日期**组合的资格规则，聚合商就某个响应事件提交一批设备，
+服务返回**逐设备**准入裁决、命中的**规则版本**与 **Ed25519 签名 + 内容摘要**。自有只增哈希链
+`data/eligibility.log`，与编排内核同一套恢复契约；**历史批次钉死裁决当时的规则版本与链尖，
+后续规则发布 / 撤销 / 回滚都不追改**。
+
+```bash
+npm run gate                 # 资格闸服务 + 运营台 → http://localhost:8093/
+npm run test:e2e:eligibility # 41 项真实 HTTP 断言（含真实进程重启）
+node --test test/eligibility.test.js  # 23 个领域单测
+```
+
+- **逐设备拒绝原因全部列出**：`UNKNOWN_DEVICE`（未知设备，不影响同批其他设备）、
+  `CROSS_REGION`（跨区域）、`DEVICE_SUSPENDED`（已暂停）、`NO_APPLICABLE_RULE`
+  （无规则 / 未生效 / 已过期 / 撤销已生效）、`MUTEX_TAG`（命中互斥标签）、`LEAD_TIME`（最短提前期）。
+  规则解析：**设备专属优先于地区默认**，同优先级取全局版本更新者。
+- **规则版本链**：发布 / 撤销 / 回滚各占一个全局只增版本号，链尖为规则变动记录哈希；
+  支持**定时生效**（validFrom/until）、**定时撤销**（撤销可 future effectiveFrom，生效前仍可裁决）、
+  **回滚**（取历史版本内容发新版本，旧记录不删改；已撤销规则不能直接改，必须回滚）。
+  同作用域日期重叠 `RULE_OVERLAP(409)`，乐观锁 `expectedVersion` 不符 `RULE_VERSION_CONFLICT(409)`。
+- **申请号幂等**：同号同文返回原批次（200），同号异文 `409 REQUEST_ID_CONFLICT`；台账随链重放。
+- **批次冻结与脱敏下载**：冻结后才允许下载脱敏 CSV（设备号 `前缀-****-短指纹`，不含名称/签名）；
+  **空批次**合法且可签名冻结。
+- **独立验签**：`/api/batches/:id/verify` 重算规范化摘要、链上公钥验 Ed25519、核对绑定的版本链尖
+  与逐条规则内容指纹；运营台可复制公钥离线验。
+- **并发与重启**：命令同步串行按序落账（recordSeq）；真实重启后裁决顺序、版本链、幂等台账、
+  逐字节摘要全部不变。
+
+详见 [`eligibility/README.md`](eligibility/README.md)。
+
 ## 重启恢复契约（日志损坏 / 断电残尾）
 
 服务重启时逐行重放 `data/events.log`，并对每条记录独立校验**序号连续性、prevHash 衔接、内容哈希**：

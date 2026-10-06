@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>灵活负荷资格闸 · 运营台</title>
+<style>
+  :root {
+    --bg:#0e1420; --panel:#161f2e; --panel2:#1c2738; --line:#28354a;
+    --txt:#e6ecf5; --muted:#8fa0b8; --accent:#4f9cff; --ok:#34c78a;
+    --warn:#f0b429; --bad:#f06a6a; --violet:#b58cff; --cyan:#4fd6e0;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--txt); }
+  header { display:flex; align-items:center; gap:16px; padding:14px 22px; background:linear-gradient(90deg,#12203a,#0e1420); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10; }
+  header h1 { font-size:17px; margin:0; }
+  header .clock { font-variant-numeric:tabular-nums; color:var(--cyan); font-weight:600; }
+  .spacer { flex:1; }
+  .wrap { display:grid; grid-template-columns:340px 1fr 400px; gap:14px; padding:14px 22px; align-items:start; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:14px; }
+  .panel h2 { font-size:13px; margin:0 0 10px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  label { display:block; font-size:12px; color:var(--muted); margin:8px 0 3px; }
+  select, input, button, textarea { font:inherit; width:100%; background:var(--panel2); color:var(--txt); border:1px solid var(--line); border-radius:7px; padding:7px 9px; }
+  button { cursor:pointer; width:auto; padding:7px 12px; font-weight:600; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#06101f; }
+  button.good { background:var(--ok); border-color:var(--ok); color:#06140d; }
+  button.warn { background:var(--warn); border-color:var(--warn); color:#1c1400; }
+  button.bad { background:var(--bad); border-color:var(--bad); color:#200606; }
+  button.ghost { background:transparent; color:var(--muted); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .card { background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:10px 11px; margin-bottom:9px; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:99px; font-size:11px; font-weight:700; }
+  .tag.ACTIVE { background:#0f3a2a; color:#5fe3ac; }
+  .tag.SCHEDULED { background:#13315c; color:#8fc2ff; }
+  .tag.EXPIRED { background:#26303f; color:#9fb2c8; }
+  .tag.REVOKED { background:#3f1d1d; color:#ff9d9d; }
+  .tag.REVOKE_SCHEDULED { background:#3d2f10; color:#f5c451; }
+  .tag.SUPERSEDED { background:#2a2140; color:#c3aef5; }
+  .tag.APPROVED { background:#0f3a2a; color:#5fe3ac; }
+  .tag.REJECTED { background:#3f1d1d; color:#ff9d9d; }
+  .tag.OPEN { background:#13315c; color:#8fc2ff; }
+  .tag.FROZEN { background:#0f3a2a; color:#5fe3ac; }
+  .tag.reason { background:#2a2030; color:#e6a0a0; margin:1px 3px 1px 0; }
+  .muted { color:var(--muted); font-size:12px; }
+  .mono { font-variant-numeric:tabular-nums; font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .hash { font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--violet); font-size:11px; word-break:break-all; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th,td { text-align:left; padding:6px 7px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:11.5px; }
+  tr.sel { background:#132742; cursor:pointer; }
+  .toast-wrap { position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:50; }
+  .toast { background:#202b3d; border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; padding:9px 13px; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,.4); }
+  .toast.err { border-left-color:var(--bad); } .toast.ok { border-left-color:var(--ok); }
+  details { margin-top:8px; } summary { cursor:pointer; color:var(--muted); font-size:12px; }
+  pre.box { max-height:220px; overflow:auto; background:#0a101b; border:1px solid var(--line); border-radius:8px; padding:9px; font-size:11px; color:#a9c0dd; white-space:pre-wrap; }
+  .pill { font-size:11px; border:1px solid var(--line); border-radius:99px; padding:0 7px; color:var(--muted); }
+  .ok-txt { color:var(--ok); font-weight:700; } .bad-txt { color:var(--bad); font-weight:700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡️ 灵活负荷资格闸 · 运营台</h1>
+  <span class="clock" id="clock">--</span>
+  <span id="chainBadge"></span>
+  <div class="spacer"></div>
+  <div class="row">
+    <button class="ghost" onclick="tick(60)">+1 小时</button>
+    <button class="ghost" onclick="tick(24*60)">+1 天</button>
+    <button class="ghost" onclick="tick(4*24*60)">+4 天</button>
+    <button class="warn" onclick="resetAll()">重置演示数据</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- 左列：设备台账 + 规则维护 + 试算 -->
+  <div>
+    <div class="panel">
+      <h2>① 设备台账</h2>
+      <div id="deviceList"></div>
+      <details>
+        <summary>登记新设备</summary>
+        <label>设备号</label><input id="ndId" placeholder="GFD-9" />
+        <label>地区</label><select id="ndRegion"></select>
+        <label>标签（逗号分隔）</label><input id="ndTags" placeholder="HVAC,STORAGE" />
+        <div class="row" style="margin-top:8px"><button class="primary" onclick="registerDevice()">登记</button></div>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h2>② 维护资格规则</h2>
+      <label>规则号（留空自动生成；填已有规则号＝发新版本）</label>
+      <input id="rId" placeholder="RULE-..." />
+      <div class="grid2">
+        <div><label>作用地区</label><select id="rRegion"></select></div>
+        <div><label>设备专属（可空）</label><select id="rDevice"><option value="">— 地区默认 —</option></select></div>
+      </div>
+      <label>互斥标签（逗号分隔，命中即拒）</label>
+      <input id="rDeny" placeholder="CRITICAL,STORAGE" />
+      <label>最短提前期（分钟）</label>
+      <input id="rLead" type="number" value="30" />
+      <div class="grid2">
+        <div><label>生效日</label><input id="rFrom" type="date" /></div>
+        <div><label>失效日</label><input id="rUntil" type="date" /></div>
+      </div>
+      <label>乐观锁：期望当前版本号（可空）</label>
+      <input id="rExpect" type="number" placeholder="不校验则留空" />
+      <div class="row" style="margin-top:9px">
+        <button class="primary" onclick="publishRule()">发布 / 发新版本</button>
+      </div>
+      <div class="muted" id="ruleChainTip"></div>
+    </div>
+
+    <div class="panel">
+      <h2>③ 规则试算（不落盘）</h2>
+      <div class="grid2">
+        <div><label>事件地区</label><select id="tRegion"></select></div>
+        <div><label>距开始（分钟）</label><input id="tLead" type="number" value="60" /></div>
+      </div>
+      <label>参评设备（逗号分隔，可填未知设备）</label>
+      <input id="tDevices" value="GFD-1,GFD-2,GFD-3,GFD-4,GFD-X" />
+      <details>
+        <summary>叠加草案规则（仅本次试算）</summary>
+        <label>草案地区</label><select id="tDRRegion"></select>
+        <div class="grid2">
+          <div><label>草案互斥标签</label><input id="tDDeny" placeholder="留空=无" /></div>
+          <div><label>草案提前期(分)</label><input id="tDLead" type="number" value="0" /></div>
+        </div>
+      </details>
+      <div class="row" style="margin-top:8px"><button class="good" onclick="trial()">试算</button></div>
+      <div id="trialOut" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- 中列：规则版本 + 批次逐项复核 -->
+  <div>
+    <div class="panel">
+      <h2>④ 规则版本链（撤销 / 回滚）</h2>
+      <div id="ruleList"></div>
+    </div>
+    <div class="panel">
+      <h2>⑥ 准入批次 · 逐项复核</h2>
+      <div id="batchList" class="muted">加载中…</div>
+    </div>
+  </div>
+
+  <!-- 右列：批量申请 + 批次详情/验签 -->
+  <div>
+    <div class="panel">
+      <h2>⑤ 聚合商批量申请</h2>
+      <label>申请号 requestId（同号重送返回原裁决，正文变更 409）</label>
+      <input id="aReq" placeholder="BID-20261006-001" />
+      <label>聚合商</label><select id="aAgg"></select>
+      <div class="grid2">
+        <div><label>响应事件地区</label><select id="aRegion"></select></div>
+        <div><label>事件开始（距现在分钟）</label><input id="aLead" type="number" value="60" /></div>
+      </div>
+      <label>事件号</label><input id="aEventId" value="DR-EVENT-1" />
+      <label>设备清单（逗号分隔）</label>
+      <textarea id="aDevices" rows="2">GFD-1,GFD-2,GFD-3,GFD-4,GFD-X</textarea>
+      <div class="row" style="margin-top:9px"><button class="primary" onclick="applyBatch()">提交申请</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>⑦ 批次详情 / 冻结 / 脱敏下载 / 独立验签</h2>
+      <div id="batchDetail" class="muted">选择中间列的批次查看逐设备裁决。</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+<script src="/app.js"></script>
+</body>
+</html>

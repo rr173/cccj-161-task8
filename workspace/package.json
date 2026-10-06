@@ -8,6 +8,8 @@
     "start": "node src/server.js",
     "notifier": "node notifier/server.js",
     "evidence": "node evidence/server.js",
+    "gate": "node eligibility/server.js",
+    "demo:gate": "node scripts/e2e-eligibility.mjs",
     "demo:notifier": "node notifier/demo.mjs",
     "demo:evidence": "node evidence/demo.mjs",
     "test": "node --test test/",
@@ -15,6 +17,7 @@
     "test:e2e:packages": "node scripts/e2e-packages.mjs",
     "test:e2e:evidence": "node scripts/evidence-e2e.mjs",
     "test:e2e:evidence-destroy": "node scripts/evidence-destroy-e2e.mjs",
+    "test:e2e:eligibility": "node scripts/e2e-eligibility.mjs",
     "test:notifier": "node notifier/e2e.mjs"
   },
   "engines": {
